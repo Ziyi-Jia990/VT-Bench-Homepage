@@ -1,0 +1,664 @@
+const { useMemo, useState } = React;
+
+const LINKS = {
+  arxiv: "#",
+  code: "https://github.com/Ziyi-Jia990/VT-Bench",
+};
+
+const paper = {
+  title: "VT-Bench",
+  subtitle: "A Unified Benchmark for Visual-Tabular Multi-Modal Learning",
+  authors: [
+    { name: "Zi-Yi Jia", sup: "1,2" },
+    { name: "Zi-Jian Cheng", sup: "1,2" },
+    { name: "Xin-Yue Zhang", sup: "1,2" },
+    { name: "Kun-Yang Yu", sup: "2,3" },
+    { name: "Zhi Zhou", sup: "2" },
+    { name: "Yu-Feng Li", sup: "2,3,‡" },
+    { name: "Lan-Zhe Guo", sup: "1,2,‡" },
+  ],
+  affiliations: [
+    "1 School of Intelligence Science and Technology, Nanjing University, China",
+    "2 National Key Laboratory for Novel Software Technology, Nanjing University, China",
+    "3 School of Artificial Intelligence, Nanjing University, China",
+  ],
+  abstract:
+    "Multi-modal learning has attracted great attention in visual-text tasks. However, visual-tabular data, which plays a pivotal role in high-stakes domains like healthcare and industry, remains underexplored. In this paper, we introduce VT-Bench, the first unified benchmark for standardizing vision-tabular discriminative prediction and generative reasoning tasks. VT-Bench aggregates 14 datasets across 9 domains, with over 756K samples. We evaluate 23 representative models, including unimodal experts, specialized visual-tabular models, and general-purpose vision-language models, highlighting substantial challenges of visual-tabular learning. We believe VT-Bench will stimulate the community to build more powerful multi-modal vision-tabular foundation models.",
+  news: [
+    "[2026-05] Accepted to ICML 2026. Camera-ready version coming soon.",
+    "[2026-05] VT-Bench project page is released.",
+    "[2026-05] Paper is accessible now.",
+    "[2026-02] Code is available now.",
+  ],
+  contact: "If you have any questions, feel free to contact us at jiazy@smail.nju.edu.cn or submit an issue in the project repository.",
+  bibtex: `@inproceedings{jia2026vtbench,
+  title     = {VT-Bench: A Unified Benchmark for Visual-Tabular Multi-Modal Learning},
+  author    = {Jia, Zi-Yi and Cheng, Zi-Jian and Zhang, Xin-Yue and Yu, Kun-Yang and Zhou, Zhi and Li, Yu-Feng and Guo, Lan-Zhe},
+  booktitle = {Proceedings of the 43rd International Conference on Machine Learning},
+  year      = {2026}
+}`,
+};
+
+const quickstartPrediction = [
+  "python run.py --task prediction --dataset skin --model TIP --setting none --diagnostics mcr",
+  "",
+  "python run.py --task prediction --dataset skin --model TIP --setting none --diagnostics mcr \\",
+  "  --checkpoint {YOUR_PRETRAINED_CKPT_PATH}",
+].join("\n");
+
+const quickstartReasoning = "python run.py --task reasoning --dataset ehrxqa --model Qwen/Qwen3-VL-8B-Instruct --setting full --diagnostics none";
+
+const quickstartApiKeys = [
+  "export OPENAI_API_KEY='your_openai_api_key'",
+  "export GOOGLE_API_KEY='your_google_api_key'",
+].join("\n");
+
+const quickstartInstall = [
+  "git clone https://github.com/Ziyi-Jia990/VT-Bench.git",
+  "cd VT-Bench",
+  "",
+  "conda env create --file environment.yaml",
+  "conda activate vt_bench",
+].join("\n");
+
+const quickstartVlmInstall = [
+  "conda env create --file environment_vlm.yaml",
+  "conda activate vt_bench_vlm",
+  "",
+  "git clone https://github.com/hiyouga/LLaMA-Factory.git",
+].join("\n");
+
+const benchmarkRows = [
+  ["Datasets", "14", "Prediction and reasoning tasks"],
+  ["Domains", "9", "Medical-centric, while covering pets, media, transportation, and vision domains"],
+  ["Samples", "756K+", "Large-scale unified benchmark"],
+  ["Models", "23", "Unimodal experts, specialized vision-tabular models, and VLMs"],
+];
+
+const NA = "N/A";
+
+const datasets = [
+  ["Skin Cancer", "skin", "Public", "kaggle", "https://www.kaggle.com/datasets/mahdavi1202/skin-cancer", "Discriminative Prediction"],
+  ["Breast Cancer", "breast", "Public", "kaggle", "https://www.kaggle.com/datasets/awsaf49/cbis-ddsm-breast-cancer-image-dataset", "Discriminative Prediction"],
+  ["Infarction", "Infarction", "Public Credentialized Access", "UK Biobank", "https://www.ukbiobank.ac.uk/enable-your-research/apply-for-access", "Discriminative Prediction"],
+  ["Adoption", "adoption", "Public", "kaggle", "https://www.kaggle.com/competitions/petfinder-adoption-prediction", "Discriminative Prediction"],
+  ["CelebA", "celebA", "Public", "kaggle", "https://www.kaggle.com/datasets/jessicali9530/celeba-dataset", "Discriminative Prediction"],
+  ["DVM-Car", "dvm", "Public", "DVM-Car", "https://deepvisualmarketing.github.io/", "Discriminative Prediction"],
+  ["Pawpularity", "pawpularity", "Public", "kaggle", "https://www.kaggle.com/competitions/petfinder-pawpularity-score", "Discriminative Prediction"],
+  ["Anime", "anime", "Public", "kaggle", "https://www.kaggle.com/datasets/dbdmobile/myanimelist-dataset", "Discriminative Prediction"],
+  ["Pneumonia", "pneumonia", "Constructed", "see GitHub", `${LINKS.code}/tree/main/dataset/Constructed_datasets`, "Discriminative Prediction"],
+  ["Los", "los", "Constructed", "see GitHub", `${LINKS.code}/tree/main/dataset/Constructed_datasets`, "Discriminative Prediction"],
+  ["Respiratory Rate", "rr", "Constructed", "see GitHub", `${LINKS.code}/tree/main/dataset/Constructed_datasets`, "Discriminative Prediction"],
+  ["DVM-Car QA", "dvm", "Constructed", "see GitHub", `${LINKS.code}/tree/main/reasoning/DVM_QA`, "Generative Reasoning"],
+  ["MMQA", "mmqa", "Public", "MMQA", "https://allenai.github.io/multimodalqa/", "Generative Reasoning"],
+  ["EHRXQA", "ehrxqa", "Public Credentialized Access", "EHRXQA", "https://github.com/baeseongsu/ehrxqa.git", "Generative Reasoning"],
+];
+
+const models = {
+  "Vision Unimodal Models": [
+    ["ResNet-50", "https://arxiv.org/abs/1512.03385", "A 50-layer deep residual learning architecture that introduces identity skip connections to ease optimization and improve accuracy for large-scale visual recognition."],
+    ["ViT-B/16", "https://arxiv.org/abs/2010.11929", "A pure Transformer architecture for vision that represents images as sequences of fixed-size patches and applies self-attention directly over patch tokens."],
+  ],
+  "Tabular Unimodal Models": [
+    ["LightGBM", "https://proceedings.neurips.cc/paper/2017/hash/6449f44a102fde848669bdd9eb6b76fa-Abstract.html", "An efficient Gradient Boosting Decision Tree implementation optimized for large-scale and high-dimensional data."],
+    ["TabTransformer", "https://arxiv.org/abs/2012.06678", "A Transformer-based architecture that contextualizes categorical feature embeddings via self-attention."],
+    ["TabPFN v2", "https://www.nature.com/articles/s41586-024-08328-6", "A tabular foundation model trained on synthetic datasets to perform general-purpose supervised prediction on tables."],
+  ],
+  "Vision-Tabular Multi-Modal Models": [
+    ["Concat", "https://www.sciencedirect.com/science/article/abs/pii/S105381191930031X", "A multi-modal method that integrates imaging and clinical features through feature concatenation."],
+    ["MAX", "https://www.nature.com/articles/s41598-021-92799-4", "A multi-modal deep learning framework that fuses modality-specific representations using element-wise maximum operation."],
+    ["MUL", "https://link.springer.com/chapter/10.1007/978-3-030-59713-9_24", "An integrative CNN using channel-wise multiplicative fusion between imaging and non-imaging streams."],
+    ["DAFT", "https://arxiv.org/abs/2107.05990", "A conditioning module that fuses imaging features with tabular variables via dynamic affine transforms."],
+    ["CHARMS", "https://openreview.net/forum?id=v7I5FtL2pV", "A cross-modal knowledge transfer method aligning image channels with tabular features via optimal transport."],
+    ["MMCL", "https://arxiv.org/abs/2303.14080", "A multi-modal contrastive pretraining framework for paired imaging and tabular data."],
+    ["TIP", "https://arxiv.org/abs/2407.07582", "A self-supervised tabular-image pre-training framework for multi-modal classification under incomplete tabular inputs."],
+  ],
+  "VLMs": [
+    ["Table-LLaVA-v1.5-7B", "https://arxiv.org/abs/2406.08100", "A multi-modal table understanding model for table-centric instructions."],
+    ["Qwen3-VL-8B-Instruct", "https://arxiv.org/abs/2511.21631", "An instruction-tuned Qwen3-VL model for general-purpose multi-modal understanding and generation."],
+    ["Qwen3-VL-8B-Thinking", "https://arxiv.org/abs/2505.09388", "A reasoning-oriented Qwen3-VL variant emphasizing multi-step multi-modal reasoning."],
+    ["InternVL3-8B", "https://arxiv.org/abs/2504.10479", "An open-source multi-modal LLM with native multi-modal pre-training."],
+    ["GLM-4.1V-9B-Thinking", "https://arxiv.org/abs/2507.01006", "A reasoning-oriented vision-language model trained for general-purpose multi-modal reasoning."],
+    ["Llama-3.2-11B-Vision-Instruct", "https://arxiv.org/abs/2407.21783", "A multi-modal Llama model with visual reasoning capabilities."],
+    ["Pixtral-12B", "https://arxiv.org/abs/2410.07073", "A 12B vision-language model for natural images and documents."],
+    ["GPT-4.1", "https://openai.com/index/gpt-4-1/", "A proprietary model with strong instruction following, coding, and long-context processing."],
+    ["Gemini-3-Flash-Preview", "https://storage.googleapis.com/deepmind-media/Model-Cards/Gemini-3-Flash-Model-Card.pdf", "A lightweight Gemini-family model optimized for low-latency and cost-effective inference."],
+  ],
+  "Tool-Augmented Methods": [
+    [
+      "StructGPT",
+      "https://arxiv.org/abs/2305.09645",
+      "A tool-augmented structured-data reasoning framework that enables LLMs to iteratively read evidence from tables, knowledge graphs, and databases through external interfaces before performing reasoning."
+    ],
+    [
+      "Thyme",
+      "https://arxiv.org/abs/2508.11630",
+      "A tool-augmented multimodal reasoning framework that enables MLLMs to generate and execute code for image processing and computational operations beyond direct visual perception."
+    ],
+  ],
+};
+
+const predictionLeaderboard = [
+  { type: "group", label: "Unimodal Baseline" },
+  ["ResNet-50", "9.5", "0.224", "0.370", "0.6699", "0.719", "0.302", "0.856", "0.822", NA, "18.808", "9.102", "21.188", "0.840", NA],
+  ["ViT-16", "7.1", "0.574", "0.578", "0.9636", "0.677", "0.371", "0.879", "0.784", NA, "14.644", "4.192", "21.189", "0.869", NA],
+  ["LightGBM", "6.1", "0.546", "0.839", "0.7087", "0.670", "0.410", "0.983", "0.792", NA, "14.060", "12.141", "21.238", "0.497", NA],
+  ["TabPFN v2", "5.3", "0.493", "0.835", "0.7256", "0.697", "0.414", "0.913", "0.801", NA, "18.111", "7.878", "20.813", "0.482", NA],
+  ["TabTransformer", "5.7", "0.507", "0.741", "0.9174", "0.699", "0.392", "0.944", "0.789", NA, "18.486", "9.075", "20.815", "0.528", NA],
+  { type: "group", label: "Vision–Tabular Multi-modal Models with Early-Interaction Fusion" },
+  ["CHARMS", "8.1", "0.040", "0.452", "0.8527", "0.722", "0.286", "0.940", "0.813", "-0.1264", "18.367", "9.111", "19.924", "0.912", "1.855"],
+  ["MMCL", "8.9", "0.313", "0.370", "0.6470", "0.724", "0.307", "0.912", "0.826", "-0.1274", "20.114", "9.131", "20.854", "0.866", "0.757"],
+  ["TIP", "8.5", "0.461", "0.715", "0.7279", "0.682", "0.309", "0.984", "0.800", "-0.0445", "21.603", "9.660", "21.218", "0.541", "1.435"],
+  ["DAFT", "7.7", "0.412", "0.674", "0.6992", "0.723", "0.292", "0.975", "0.822", "-0.0562", "18.878", "9.042", "21.324", "0.598", "0.235"],
+  { type: "group", label: "Vision–Tabular Multi-modal Models with Late Fusion" },
+  ["MAX", "6.5", "0.503", "0.752", "0.6991", "0.721", "0.312", "0.955", "0.824", "-0.0318", "18.219", "9.151", "21.273", "0.532", "0.215"],
+  ["Concat", "5.4", "0.503", "0.748", "0.7205", "0.722", "0.334", "0.953", "0.828", "-0.0260", "18.062", "9.218", "20.922", "0.535", "-0.557"],
+  ["Mul", "9.5", "0.503", "0.729", "0.6930", "0.720", "0.280", "0.961", "0.821", "-0.0403", "18.209", "21655801.1", "161.841", "6.475", "5413983.6"],
+  { type: "group", label: "VLMs" },
+  ["Table-LLaVA-v1.5-7B", "9.1", "0.040", "0.374", "0.7030", "0.699", "0.362", "0.4434", "0.826", "-0.2204", "19.415", "13.946", "23.050", "0.463", "0.312"],
+  ["Qwen3-VL-8B-Instruct", "7.5", "0.303", "0.709", "0.7425", "0.715", "0.389", "0.9682", "0.823", "-0.0487", "19.824", "9.204", "21.627", "0.436", "1.925"],
+];
+
+const reasoningLeaderboard = [
+  { type: "group", label: "DVM-Car QA" },
+  ["Identification", "0.7033", "0.9056", "0.9567", "0.9578", "0.5589", "0.8856", "0.8178", "0.8956", "0.7211", "0.7511"],
+  ["Row Localization", "0.4567", "0.6756", "0.6133", "0.7511", "0.4189", "0.5289", "0.7300", "0.9533", "0.8578", "0.4361"],
+  ["Attribute Retrieval", "0.3389", "0.4978", "0.5733", "0.6900", "0.2489", "0.6200", "0.8844", "0.9300", "0.4956", "0.6722"],
+  ["Constrained Counting", "0.2533", "0.4233", "0.0189", "0.4200", "0.1922", "0.1600", "0.4167", "0.5111", "0.3000", "0.2244"],
+  ["Conditional Mean", "0.0433", "0.0578", "0.0230", "0.2056", "0.0433", "0.0856", "0.2111", "0.4967", "0.0067", "0.1389"],
+  ["Average Accuracy", "0.2731", "0.4136", "0.3071", "0.5167", "0.2258", "0.3486", "0.5606", "0.7228", "0.4150", "0.3679"],
+  { type: "group", label: "MMQA" },
+  ["TableQ", "0.7073", "0.6694", "0.5550", "0.7260", "0.3740", "0.7019", "0.7556", "0.7922", "0.7178", "0.6450"],
+  ["TextQ", "0.7101", "0.7060", "0.6684", "0.6946", "0.4355", "0.7420", "0.7300", "0.7470", "0.6876", "0.6200"],
+  ["ImageQ", "0.2783", "0.4783", "0.3678", "0.4488", "0.2391", "0.4217", "0.5730", "0.6447", "0.5493", "0.4605"],
+  ["ImageListQ", "0.0922", "0.2411", "0.0724", "0.2478", "0.0780", "0.1418", "0.3137", "0.3510", "0.2319", "0.1739"],
+  ["Multi-Hop TASK", "0.3886", "0.4171", "0.2036", "0.3997", "0.1961", "0.4161", "0.5948", "0.7234", "0.3462", "0.4274"],
+  ["Average Accuracy", "0.4724", "0.5300", "0.3924", "0.5621", "0.2824", "0.5339", "0.6360", "0.7087", "0.5411", "0.5092"],
+  { type: "group", label: "EHRXQA" },
+  ["FULL", "0.2219", "0.1920", "0.0000", "0.0728", "0.0830", "0.1666", "0.2643", "0.2751", "0.1416", "0.0440"],
+  ["STAGE 1", "0.6017", "0.5206", "0.0000", "0.2317", "0.2900", "0.6181", "0.7937", "0.6297", "0.4626", "0.2410"],
+  ["STAGE 2", "0.4052", "0.4449", "0.2716", "0.3854", "0.3842", "0.3796", "0.4628", "0.5157", "0.3080", "0.1820"],
+];
+
+const rankComparisonRows = [
+  [1, "TabPFN v2", "Gemini-3-Flash-Preview"],
+  [2, "Concat", "GPT-4.1"],
+  [3, "TabTransformer", "GLM-4.1V-9B Thinking"],
+  [4, "LightGBM", "StructGPT"],
+  [5, "MAX", "Qwen3-VL-8B Instruct"],
+  [6, "ViT-16", "Pixtral-12B"],
+  [7, "Qwen3-VL-8B Instruct", "InternVL3-8B"],
+  [8, "DAFT", "Thyme"],
+  [9, "CHARMS", "Qwen3-VL-8B Thinking"],
+  [10, "TIP", "Llama-3.2-11B Vision-Instruct"],
+  [11, "MMCL", "\\"],
+  [12, "Mul", "\\"],
+  [13, "ResNet-50", "\\"],
+];
+
+function RankComparisonTable() {
+  return (
+    <section className="section-block">
+      <h2>Overall Rank Comparison</h2>
+      <div className="rule" />
+
+      <table className="rank-comparison-table">
+        <thead>
+          <tr>
+            <th>Rank</th>
+            <th>Discriminative Prediction</th>
+            <th>Generative Reasoning</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rankComparisonRows.map(([rank, prediction, reasoning]) => (
+            <tr key={rank}>
+              <td>{rank}</td>
+              <td>{prediction}</td>
+              <td>{reasoning}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+  );
+}
+
+const css = String.raw`
+:root { --text: #111827; --muted: #4b5563; --line: #e5e7eb; --link: #2563eb; --nav: #242a31; --bg: #ffffff; }
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; }
+.site-shell { min-height: 100vh; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, "Noto Sans", sans-serif; }
+.topbar { height: 50px; border-bottom: 1px solid var(--line); background: #fff; position: sticky; top: 0; z-index: 10; }
+.nav-inner { max-width: 1080px; height: 50px; margin: 0 auto; padding: 0 12px; display: flex; align-items: center; justify-content: space-between; }
+.logo-button { border: 0; background: transparent; padding: 0; cursor: pointer; display: flex; align-items: center; }
+.logo-img { display: block; width: 128px; height: 60px; object-fit: contain; }
+nav { display: flex; align-items: center; height: 100%; }
+nav button { height: 40px; border: 0; background: transparent; padding: 0 13px; color: #526070; font-size: 15px; cursor: pointer; }
+nav button:hover { color: #111827; }
+nav button.nav-active { background: var(--nav); color: #fff; font-weight: 700; }
+.page { max-width: 1080px; margin: 0 auto; padding: 0 12px 18px; }
+.hero-title { text-align: center; padding-top: 20px; padding-bottom: 34px; }
+h1, h2, h3, p { margin-top: 0; }
+.hero-title h1 { font-size: 37px; line-height: 1.15; margin-bottom: 10px; font-weight: 700; }
+.hero-title h2 { font-size: 30px; line-height: 1.25; margin-bottom: 8px; font-weight: 600; }
+.authors { font-size: 16px; margin-top: 5px; margin-bottom: 2px; }
+.authors a { color: var(--link); text-decoration: none; }
+.authors a:hover { text-decoration: underline; }
+sup { font-size: 0.68em; line-height: 0; vertical-align: super; }
+.affiliations { font-size: 15px; line-height: 1.45; margin-top: 2px; }
+.button-row { margin-top: 26px; display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; }
+.paper-button { min-width: 100px; height: 40px; border: 1px solid #111; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; color: #000; text-decoration: none; background: #fff; font-size: 15px; }
+.paper-button:hover { background: #f3f4f6; }
+.paper-button.disabled { cursor: default; opacity: 0.72; }
+.icon { width: 22px; height: 22px; }
+.section-block { margin-top: 16px; margin-bottom: 18px; }
+.page-section-top { margin-top: 36px; }
+.section-block h2 { font-size: 30px; font-weight: 700; line-height: 1.25; margin-bottom: 12px; }
+.rule { height: 1px; background: var(--line); margin-bottom: 18px; }
+.section-block p { font-size: 16px; line-height: 1.55; color: #111827; }
+.news-list { font-size: 15px; line-height: 1.55; margin-top: 0; margin-bottom: 18px; }
+.contact-line { margin-bottom: 0; }
+.bibtex, .code-box { border: 1px solid #d1d5db; border-radius: 4px; background: #f3f3f3; padding: 16px; overflow-x: auto; white-space: pre; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size: 13px; line-height: 1.55; }
+.code-box { background: #f8fafc; border-radius: 6px; }
+.simple-table { width: 100%; border-collapse: collapse; font-size: 15px; line-height: 1.4; border: 1px solid var(--line); }
+.simple-table th, .simple-table td { border: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; }
+.simple-table th { background: #f3f4f6; font-weight: 700; }
+.simple-table tr:nth-child(even) td { background: #fafafa; }
+.simple-table a, .model-list a { color: var(--link); text-decoration: none; }
+.simple-table a:hover, .model-list a:hover { text-decoration: underline; }
+.dataset-table th:nth-child(2), .dataset-table td:nth-child(2) { white-space: nowrap; }
+.model-group { margin-top: 22px; }
+.model-group h3 { font-size: 22px; margin-bottom: 10px; }
+.model-list { margin-top: 0; padding-left: 24px; font-size: 15px; line-height: 1.65; }
+.model-list li { margin-bottom: 8px; }
+.card-grid { display: grid; gap: 16px; }
+.two-col { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.info-card { border: 1px solid var(--line); border-radius: 8px; padding: 18px; background: #fff; }
+.info-card h3 { font-size: 19px; margin-bottom: 8px; }
+.info-card p { margin-bottom: 0; color: var(--muted); }
+.code-header { border: 1px solid #d1d5db; border-bottom: 0; border-radius: 6px 6px 0 0; background: #f3f4f6; padding: 8px 10px; display: flex; justify-content: space-between; align-items: center; font-size: 14px; }
+.code-header + .code-box { border-radius: 0 0 6px 6px; }
+.code-header button { border: 1px solid #9ca3af; background: #fff; border-radius: 4px; padding: 4px 10px; cursor: pointer; }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
+.table-note { color: var(--muted); font-size: 14px !important; margin-bottom: 10px; }
+.table-scroll { width: 100%; overflow-x: auto; border: 1px solid var(--line); border-radius: 4px; }
+.table-scroll .simple-table { border: 0; }
+.compact-table { min-width: 1280px; font-size: 12px; line-height: 1.25; }
+.compact-table th, .compact-table td { padding: 7px 8px; text-align: center; white-space: nowrap; }
+.compact-table th:first-child, .compact-table td:first-child { text-align: left; position: sticky; left: 0; background: #fff; z-index: 1; box-shadow: 1px 0 0 var(--line); }
+.compact-table thead th:first-child { background: #f3f4f6; z-index: 3; }
+.compact-table .super-header th { background: #eef2ff; color: #1f2937; font-weight: 700; text-align: center; }
+.compact-table .group-row td { background: #f3f4f6 !important; font-weight: 700; text-align: left; }
+.result-table tr:nth-child(even) td { background: #fafafa; }
+.reasoning-table { min-width: 1180px; }
+.test-banner { background: #fff7ed; color: #9a3412; border-bottom: 1px solid #fed7aa; padding: 8px 12px; font-size: 13px; }
+.rank-comparison-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 15px;
+  line-height: 1.45;
+  margin-top: 8px;
+}
+
+.rank-comparison-table th,
+.rank-comparison-table td {
+  border-bottom: 1px solid #d9d9d9;
+  padding: 11px 14px;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.rank-comparison-table th {
+  background: #f0f0f0;
+  font-weight: 700;
+}
+
+.rank-comparison-table td:first-child,
+.rank-comparison-table th:first-child {
+  width: 120px;
+}
+
+.rank-comparison-table tr:hover td {
+  background: #f8f8f8;
+}
+
+@media (max-width: 760px) {
+  .topbar { height: auto; }
+  .nav-inner { height: auto; align-items: flex-start; gap: 8px; flex-direction: column; padding: 6px 12px; }
+  nav { width: 100%; overflow-x: auto; }
+  nav button { height: 36px; padding: 0 10px; }
+  .hero-title h1 { font-size: 32px; }
+  .hero-title h2 { font-size: 24px; }
+  .section-block h2 { font-size: 26px; }
+  .two-col { grid-template-columns: 1fr; }
+  .simple-table { font-size: 13px; }
+  .simple-table th, .simple-table td { padding: 8px; }
+}
+`;
+
+function Icon({ name, className = "icon" }) {
+  const common = {
+    className,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 2,
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+    "aria-hidden": "true",
+  };
+
+  if (name === "arxiv") {
+    return (
+      <svg {...common}>
+        <path d="M5 19 19 5" />
+        <path d="M7 5h4" />
+        <path d="M5 7v4" />
+        <path d="M13 19h4" />
+        <path d="M19 17v-4" />
+        <path d="M7 17l10-10" />
+      </svg>
+    );
+  }
+
+  if (name === "github") {
+    return (
+      <svg {...common}>
+        <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.4 5.4 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.4.5-.7 1.2-.8 2-.1.8-.1 1.6-.1 2.5v3" />
+        <path d="M9 18c-4.5 2-5-2-7-2" />
+      </svg>
+    );
+  }
+
+  return null;
+}
+
+function Logo() {
+  return (
+    <img
+      className="logo-img"
+      src="./logo.png"
+      alt="VT-Bench logo"
+      onError={(event) => {
+        event.currentTarget.style.display = "none";
+      }}
+    />
+  );
+}
+
+function Nav({ page, setPage }) {
+  const tabs = ["Home", "About", "Quickstart", "Leaderboard"];
+  return (
+    <header className="topbar">
+      <div className="nav-inner">
+        <button className="logo-button" onClick={() => setPage("Home")} aria-label="Go to home page">
+          <Logo />
+        </button>
+        <nav>
+          {tabs.map((tab) => (
+            <button key={tab} className={page === tab ? "nav-active" : ""} onClick={() => setPage(tab)}>
+              {tab}
+            </button>
+          ))}
+        </nav>
+      </div>
+    </header>
+  );
+}
+
+function LinkButton({ href, children, disabled = false }) {
+  return (
+    <a
+      className={`paper-button${disabled ? " disabled" : ""}`}
+      href={disabled ? undefined : href}
+      aria-disabled={disabled ? "true" : "false"}
+      onClick={(event) => {
+        if (disabled) event.preventDefault();
+      }}
+    >
+      {children}
+    </a>
+  );
+}
+
+function HomePage() {
+  return (
+    <main className="page home-page">
+      <section className="hero-title">
+        <h1>{paper.title}</h1>
+        <h2>{paper.subtitle}</h2>
+
+        <div className="authors">
+          {paper.authors.map((author, index) => (
+            <React.Fragment key={author.name}>
+              <a href="#author">{author.name}<sup>{author.sup}</sup></a>
+              {index < paper.authors.length - 1 && <span>, </span>}
+            </React.Fragment>
+          ))}
+        </div>
+
+        <div className="affiliations">
+          {paper.affiliations.map((item) => <div key={item}>{item}</div>)}
+          <div><sup>‡</sup>Corresponding Author</div>
+        </div>
+
+        <div className="button-row">
+          <LinkButton href={LINKS.arxiv} disabled={LINKS.arxiv === "#"}>
+            <Icon name="arxiv" /> arXiv
+          </LinkButton>
+          <LinkButton href={LINKS.code}>
+            <Icon name="github" /> Code
+          </LinkButton>
+        </div>
+      </section>
+
+      <section className="section-block">
+        <h2>Abstract</h2>
+        <div className="rule" />
+        <p>{paper.abstract}</p>
+      </section>
+
+      <section className="section-block">
+        <h2>News</h2>
+        <div className="rule" />
+        <ul className="news-list">
+          {paper.news.map((item) => <li key={item}>{item}</li>)}
+        </ul>
+        <p className="contact-line">{paper.contact}</p>
+      </section>
+
+      <section className="section-block">
+        <h2>BibTeX</h2>
+        <pre className="bibtex"><code>{paper.bibtex}</code></pre>
+      </section>
+    </main>
+  );
+}
+
+function AboutPage() {
+  return (
+    <main className="page">
+      <section className="section-block page-section-top">
+        <h2>About</h2>
+        <div className="rule" />
+        <p>
+          VT-Bench is a unified benchmark for visual-tabular multi-modal learning. It covers both discriminative prediction and generative reasoning, aiming to evaluate whether models can reliably combine image evidence with structured tabular data.
+        </p>
+      </section>
+
+      <section className="section-block">
+        <h2>Benchmark Overview</h2>
+        <div className="rule" />
+        <table className="simple-table">
+          <thead><tr><th>Item</th><th>Value</th><th>Description</th></tr></thead>
+          <tbody>
+            {benchmarkRows.map((row) => <tr key={row[0]}><td>{row[0]}</td><td>{row[1]}</td><td>{row[2]}</td></tr>)}
+          </tbody>
+        </table>
+      </section>
+
+      <section className="section-block">
+        <h2>Task Paradigms</h2>
+        <div className="rule" />
+        <div className="card-grid two-col">
+          <div className="info-card"><h3>Discriminative Prediction</h3><p>Predicts a discrete label or continuous value from an aligned image and a single-row tabular feature vector.</p></div>
+          <div className="info-card"><h3>Generative Reasoning</h3><p>Answers natural-language questions using images and structured tables or databases, often requiring evidence localization and multi-step reasoning.</p></div>
+        </div>
+      </section>
+
+      <section className="section-block">
+        <h2>Datasets</h2>
+        <div className="rule" />
+        <p>The source links and availability follow the project README. For constructed datasets, the table links to the corresponding construction scripts in the GitHub repository.</p>
+        <table className="simple-table dataset-table">
+          <thead><tr><th>Dataset</th><th>Identifier</th><th>Availability</th><th>Source</th><th>Task Family</th></tr></thead>
+          <tbody>
+            {datasets.map((row) => (
+              <tr key={`${row[0]}-${row[5]}`}>
+                <td>{row[0]}</td><td><code>{row[1]}</code></td><td>{row[2]}</td><td><a href={row[4]} target="_blank" rel="noreferrer">{row[3]}</a></td><td>{row[5]}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+
+      <section className="section-block">
+        <h2>Models</h2>
+        <div className="rule" />
+        <p>VT-Bench supports vision unimodal models, tabular unimodal models, vision-tabular multi-modal fusion models, and general-purpose VLMs.</p>
+        {Object.entries(models).map(([group, items]) => (
+          <div className="model-group" key={group}>
+            <h3>{group}</h3>
+            <ol className="model-list">
+              {items.map(([name, url, desc]) => (
+                <li key={name}><strong><a href={url} target="_blank" rel="noreferrer">{name}</a></strong>: {desc}</li>
+              ))}
+            </ol>
+          </div>
+        ))}
+      </section>
+    </main>
+  );
+}
+
+function QuickstartPage() {
+  const [copied, setCopied] = useState("");
+
+  const copyText = (key, text) => {
+    navigator.clipboard?.writeText(text);
+    setCopied(key);
+    window.setTimeout(() => setCopied(""), 1600);
+  };
+
+  return (
+    <main className="page">
+      <section className="section-block page-section-top">
+        <h2>Quickstart</h2>
+        <div className="rule" />
+        <p>VT-Bench provides a unified evaluation interface for both discriminative prediction and generative reasoning tasks. The core arguments are <code>task</code>, <code>dataset</code>, <code>model</code>, <code>setting</code>, and <code>diagnostics</code>.</p>
+      </section>
+
+      <section className="section-block"><h2>1) Download</h2><div className="code-header"><span>Clone the repository</span><button onClick={() => copyText("install", quickstartInstall)}>{copied === "install" ? "Copied" : "Copy"}</button></div><pre className="code-box"><code>{quickstartInstall}</code></pre></section>
+
+      <section className="section-block"><h2>2) Environment Setup</h2><p>The default environment is suitable for most benchmark experiments. Due to version incompatibilities, please use the VLM-specific environment if you want to fine-tune Vision-Language Models.</p><div className="code-header"><span>VLM fine-tuning environment</span><button onClick={() => copyText("vlm", quickstartVlmInstall)}>{copied === "vlm" ? "Copied" : "Copy"}</button></div><pre className="code-box"><code>{quickstartVlmInstall}</code></pre></section>
+
+      <section className="section-block">
+        <h2>3) Run Evaluation</h2>
+        <p>Specify five arguments: <code>task</code>, <code>dataset</code>, <code>model</code>, <code>setting</code>, and <code>diagnostics</code>. For VLMs, use the Hugging Face full identifier, such as <code>Qwen/Qwen3-VL-8B-Instruct</code>.</p>
+        <table className="simple-table">
+          <thead><tr><th>Argument</th><th>Description</th><th>Options / Notes</th></tr></thead>
+          <tbody>
+            <tr><td><code>--task</code></td><td>Evaluation task type.</td><td><code>prediction</code> or <code>reasoning</code></td></tr>
+            <tr><td><code>--dataset</code></td><td>Dataset identifier.</td><td>Choose from the Datasets section, e.g., <code>skin</code>, <code>ehrxqa</code>.</td></tr>
+            <tr><td><code>--model</code></td><td>Model name.</td><td>Built-in model name or Hugging Face full identifier for VLMs.</td></tr>
+            <tr><td><code>--setting</code></td><td>Evaluation setting.</td><td>Varies across datasets; EHRXQA supports <code>full</code>, <code>stage1</code>, and <code>stage2</code>.</td></tr>
+            <tr><td><code>--diagnostics</code></td><td>Optional modality diagnostics for prediction.</td><td><code>none</code> / <code>mcr</code> / <code>mir</code> / <code>full</code></td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section className="section-block"><h2>Example: Discriminative Prediction</h2><div className="code-header"><span>Run prediction evaluation and MCR diagnostics</span><button onClick={() => copyText("prediction", quickstartPrediction)}>{copied === "prediction" ? "Copied" : "Copy"}</button></div><pre className="code-box"><code>{quickstartPrediction}</code></pre></section>
+      <section className="section-block"><h2>Example: Generative Reasoning</h2><div className="code-header"><span>Run EHRXQA full evaluation</span><button onClick={() => copyText("reasoning", quickstartReasoning)}>{copied === "reasoning" ? "Copied" : "Copy"}</button></div><pre className="code-box"><code>{quickstartReasoning}</code></pre></section>
+      <section className="section-block"><h2>API Models</h2><p>For API models such as GPT-4.1 and Gemini-3-Flash-Preview, export API keys before running evaluation.</p><div className="code-header"><span>Environment variables</span><button onClick={() => copyText("api", quickstartApiKeys)}>{copied === "api" ? "Copied" : "Copy"}</button></div><pre className="code-box"><code>{quickstartApiKeys}</code></pre></section>
+    </main>
+  );
+}
+
+function LeaderboardPage() {
+  const predictionHeaders = ["Method", "Rank", "Breast Cancer", "Skin Cancer", "Infarction", "Pneumonia", "Adoption", "DVM-Car", "CelebA", "Δ", "Los", "Respiratory Rate", "Pawpularity", "Anime", "Δ"];
+  const reasoningHeaders = ["TASK#", "InternVL3-8B", "Qwen3-VL-8B Instruct", "Qwen3-VL-8B Thinking", "GLM-4.1V-9B Thinking", "Llama-3.2-11B Vision-Instruct", "Pixtral-12B", "GPT-4.1", "Gemini-3-Flash-Pre.", "StructGPT", "Thyme"];
+
+  return (
+    <main className="page leaderboard-page">
+      <section className="section-block page-section-top"><h2>Leaderboard</h2><div className="rule" /><p>Results on VT-Bench across two task families. For discriminative prediction, classification reports Accuracy and regression reports RMSE. For generative reasoning, all entries report exact-match accuracy.</p></section>
+
+      <RankComparisonTable />
+
+      <section className="section-block">
+        <h2>Discriminative Prediction</h2>
+        <p className="table-note">Classification metrics are higher-is-better; regression metrics are lower-is-better. Δ denotes the relative performance gap to the best unimodal model.</p>
+        <div className="table-scroll"><table className="simple-table result-table compact-table"><thead><tr className="super-header"><th colSpan={2}></th><th colSpan={8}>Classification (↑)</th><th colSpan={5}>Regression (↓)</th></tr><tr>{predictionHeaders.map((header, index) => <th key={`${header}-${index}`}>{header}</th>)}</tr></thead><tbody>{predictionLeaderboard.map((row, index) => row.type === "group" ? <tr className="group-row" key={row.label}><td colSpan={15}>{row.label}</td></tr> : <tr key={`${row[0]}-${index}`}>{row.map((cell, cellIndex) => <td key={cellIndex}>{cell}</td>)}</tr>)}</tbody></table></div>
+      </section>
+      <section className="section-block">
+        <h2>Generative Reasoning</h2>
+        <p className="table-note">The table includes open-source general models, proprietary models, and tool-augmented methods.</p>
+        <div className="table-scroll"><table className="simple-table result-table compact-table reasoning-table"><thead><tr className="super-header"><th></th><th colSpan={6}>Open-Source General Models</th><th colSpan={2}>Proprietary Models</th><th colSpan={2}>Tool-Augmented Methods</th></tr><tr>{reasoningHeaders.map((header) => <th key={header}>{header}</th>)}</tr></thead><tbody>{reasoningLeaderboard.map((row, index) => row.type === "group" ? <tr className="group-row" key={row.label}><td colSpan={11}>{row.label}</td></tr> : <tr key={`${row[0]}-${index}`}>{row.map((cell, cellIndex) => <td key={cellIndex}>{cell}</td>)}</tr>)}</tbody></table></div>
+      </section>
+    </main>
+  );
+}
+
+function validateData() {
+  const errors = [];
+  const predictionRows = predictionLeaderboard.filter((row) => Array.isArray(row));
+  const reasoningRows = reasoningLeaderboard.filter((row) => Array.isArray(row));
+
+  if (paper.title !== "VT-Bench") errors.push("Home title should be VT-Bench.");
+  if (paper.authors.length !== 7) errors.push("Expected 7 authors.");
+  if (LINKS.code !== "https://github.com/Ziyi-Jia990/VT-Bench") errors.push("Code link is incorrect.");
+  if (!paper.abstract.includes("14 datasets")) errors.push("Abstract should mention 14 datasets.");
+  if (datasets.length !== 14) errors.push("Expected 14 dataset rows.");
+  if (!datasets.every((row) => row.length === 6 && row[4].startsWith("http"))) errors.push("Every dataset should include a valid source link.");
+  if (Object.values(models).flat().length !== 23) errors.push("Expected 23 model entries.");
+  if (!models["VLMs"].some((row) => row[0] === "Gemini-3-Flash-Preview")) errors.push("Expected Gemini-3-Flash-Preview in VLM model list.");
+  if (!quickstartPrediction.includes("--task prediction") || !quickstartReasoning.includes("--task reasoning")) errors.push("Quickstart examples are incomplete.");
+  if (predictionRows.length !== 14) errors.push("Expected 14 discriminative prediction result rows.");
+  if (reasoningRows.length !== 15) errors.push("Expected 15 generative reasoning result rows.");
+  if (!predictionRows.every((row) => row.length === 15)) errors.push("Each discriminative prediction row should have 15 cells.");
+  if (!reasoningRows.every((row) => row.length === 11)) errors.push("Each generative reasoning row should have 11 cells.");
+  if (predictionLeaderboard.filter((row) => row.type === "group").length !== 4) errors.push("Expected 4 prediction table groups.");
+  if (reasoningLeaderboard.filter((row) => row.type === "group").length !== 3) errors.push("Expected 3 reasoning table groups.");
+  if (!quickstartPrediction.includes("--checkpoint")) errors.push("Quickstart prediction example should include checkpoint usage.");
+  if (!css.includes(".topbar")) errors.push("CSS should include topbar styles.");
+  return errors;
+}
+
+function TestBanner() {
+  const errors = useMemo(() => validateData(), []);
+  if (errors.length === 0) return null;
+  return <div className="test-banner">Data checks failed: {errors.join(" ")}</div>;
+}
+
+function VTBenchProjectPage() {
+  const [page, setPage] = useState("Home");
+
+  return (
+    <div className="site-shell">
+      <style>{css}</style>
+      <TestBanner />
+      <Nav page={page} setPage={setPage} />
+      {page === "Home" && <HomePage />}
+      {page === "About" && <AboutPage />}
+      {page === "Quickstart" && <QuickstartPage />}
+      {page === "Leaderboard" && <LeaderboardPage />}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(
+  <React.StrictMode>
+    <VTBenchProjectPage />
+  </React.StrictMode>,
+);
