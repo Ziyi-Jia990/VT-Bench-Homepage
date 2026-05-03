@@ -1,1 +1,673 @@
-<hl> Hello </hl>
+import React, { useMemo, useState } from "react";
+
+const LINKS = {
+  arxiv: "#",
+  code: "https://github.com/Ziyi-Jia990/VT-Bench",
+};
+
+const paper = {
+  title: "VT-Bench",
+  subtitle: "A Unified Benchmark for Visual-Tabular Multi-Modal Learning",
+  authors: [
+    { name: "Zi-Yi Jia", sup: "1,2" },
+    { name: "Zi-Jian Cheng", sup: "1,2" },
+    { name: "Xin-Yue Zhang", sup: "1,2" },
+    { name: "Kun-Yang Yu", sup: "2,3" },
+    { name: "Zhi Zhou", sup: "2" },
+    { name: "Yu-Feng Li", sup: "2,3,‡" },
+    { name: "Lan-Zhe Guo", sup: "1,2,‡" },
+  ],
+  affiliations: [
+    "1 School of Intelligence Science and Technology, Nanjing University, China",
+    "2 National Key Laboratory for Novel Software Technology, Nanjing University, China",
+    "3 School of Artificial Intelligence, Nanjing University, China",
+  ],
+  abstract:
+    "Multi-modal learning has attracted great attention in visual-text tasks. However, visual-tabular data, which plays a pivotal role in high-stakes domains like healthcare and industry, remains underexplored. In this paper, we introduce VT-Bench, the first unified benchmark for standardizing vision-tabular discriminative prediction and generative reasoning tasks. VT-Bench aggregates 14 datasets across 9 domains, with over 756K samples. We evaluate 21 representative models, including unimodal experts, specialized visual-tabular models, and general-purpose vision-language models, highlighting substantial challenges of visual-tabular learning. We believe VT-Bench will stimulate the community to build more powerful multi-modal vision-tabular foundation models.",
+  news: [
+    "[2026-05] Accepted to ICML 2026. Camera-ready version coming soon.",
+    "[2026-05] VT-Bench project page is released.",
+    "[2026-05] Paper is accessible now.",
+    "[2026-02] Code is available now.",
+  ],
+  contact: "If you have any questions, feel free to contact us at jiazy@smail.nju.edu.cn or submit an issue in the project repository.",
+  bibtex: `@inproceedings{jia2026vtbench,
+  title     = {VT-Bench: A Unified Benchmark for Visual-Tabular Multi-Modal Learning},
+  author    = {Jia, Zi-Yi and Cheng, Zi-Jian and Zhang, Xin-Yue and Yu, Kun-Yang and Zhou, Zhi and Li, Yu-Feng and Guo, Lan-Zhe},
+  booktitle = {Proceedings of the 43rd International Conference on Machine Learning},
+  year      = {2026}
+}`,
+};
+
+const quickstart = `python run.py --task prediction --dataset pneumonia --model TIP --setting none --diagnostics full
+python run.py --task reasoning --dataset ehrxqa --model Qwen/Qwen3-VL-8B-Instruct --setting ehrxqa_full --diagnostics none`;
+
+const benchmarkRows = [
+  ["Datasets", "14", "Prediction and reasoning tasks"],
+  ["Domains", "9", "Medical-centric, while covering pets, media, transportation, and vision domains"],
+  ["Samples", "756K+", "Large-scale unified benchmark"],
+  ["Models", "21", "Unimodal experts, specialized vision-tabular models, and VLMs"],
+];
+
+const datasets = [
+  ["Breast Cancer", "Oncology", "Classification"],
+  ["Skin Cancer", "Dermatology", "Classification"],
+  ["Infarction", "Cardiology", "Classification"],
+  ["Pneumonia", "Pulmonology", "Classification"],
+  ["Adoption", "Pets", "Classification"],
+  ["CelebA", "Vision", "Classification"],
+  ["DVM-Car", "Transportation", "Classification"],
+  ["Length of Stay", "Pulmonology", "Regression"],
+  ["Respiratory Rate", "Pulmonology", "Regression"],
+  ["Pawpularity", "Pets", "Regression"],
+  ["Anime", "Media", "Regression"],
+  ["EHRXQA", "Medical", "Reasoning"],
+  ["Multi-ModalQA", "General", "Reasoning"],
+  ["DVM-Car QA", "Transportation", "Reasoning"],
+];
+
+const leaderboard = [
+  ["Gemini-3-Flash-Preview", "0.7228", "0.7087", "0.2751"],
+  ["GPT-4.1", "0.5606", "0.6360", "0.2643"],
+  ["GLM-4.1V-9B-Thinking", "0.5167", "0.5621", "0.0728"],
+  ["Qwen3-VL-8B-Instruct", "0.4136", "0.5300", "0.1920"],
+  ["Pixtral-12B", "0.3486", "0.5339", "0.1666"],
+];
+
+function Icon({ name, className = "icon" }) {
+  const common = {
+    className,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 2,
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+    "aria-hidden": "true",
+  };
+
+  const icons = {
+    arxiv: (
+      <svg {...common}>
+        <path d="M5 19 19 5" />
+        <path d="M7 5h4" />
+        <path d="M5 7v4" />
+        <path d="M13 19h4" />
+        <path d="M19 17v-4" />
+        <path d="M7 17l10-10" />
+      </svg>
+    ),
+    github: (
+      <svg {...common}>
+        <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.4 5.4 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.4.5-.7 1.2-.8 2-.1.8-.1 1.6-.1 2.5v3" />
+        <path d="M9 18c-4.5 2-5-2-7-2" />
+      </svg>
+    ),
+  };
+  return icons[name] || null;
+}
+
+function Logo() {
+  return (
+    <img
+      className="logo-img"
+      src="./logo.png"
+      alt="VT-Bench logo"
+      onError={(event) => {
+        event.currentTarget.style.display = "none";
+      }}
+    />
+  );
+}
+
+function Nav({ page, setPage }) {
+  const tabs = ["Home", "About", "Quickstart", "Leaderboard"];
+  return (
+    <header className="topbar">
+      <div className="nav-inner">
+        <button className="logo-button" onClick={() => setPage("Home")} aria-label="Go to home page">
+          <Logo />
+        </button>
+        <nav>
+          {tabs.map((tab) => (
+            <button key={tab} className={page === tab ? "nav-active" : ""} onClick={() => setPage(tab)}>
+              {tab}
+            </button>
+          ))}
+        </nav>
+      </div>
+    </header>
+  );
+}
+
+function LinkButton({ href, children, disabled = false }) {
+  return (
+    <a
+      className={`paper-button${disabled ? " disabled" : ""}`}
+      href={disabled ? undefined : href}
+      aria-disabled={disabled ? "true" : "false"}
+      onClick={(event) => {
+        if (disabled) event.preventDefault();
+      }}
+    >
+      {children}
+    </a>
+  );
+}
+
+function HomePage() {
+  return (
+    <main className="page home-page">
+      <section className="hero-title">
+        <h1>{paper.title}</h1>
+        <h2>{paper.subtitle}</h2>
+
+        <div className="authors">
+          {paper.authors.map((author, index) => (
+            <React.Fragment key={author.name}>
+              <a href="#author">{author.name}<sup>{author.sup}</sup></a>
+              {index < paper.authors.length - 1 && <span>, </span>}
+            </React.Fragment>
+          ))}
+        </div>
+
+        <div className="affiliations">
+          {paper.affiliations.map((item) => <div key={item}>{item}</div>)}
+          <div><sup>‡</sup>Corresponding Author</div>
+        </div>
+
+        <div className="button-row">
+          <LinkButton href={LINKS.arxiv} disabled={LINKS.arxiv === "#"}>
+            <Icon name="arxiv" /> arXiv
+          </LinkButton>
+          <LinkButton href={LINKS.code}>
+            <Icon name="github" /> Code
+          </LinkButton>
+        </div>
+      </section>
+
+      <section className="section-block">
+        <h2>Abstract</h2>
+        <div className="rule" />
+        <p>{paper.abstract}</p>
+      </section>
+
+      <section className="section-block">
+        <h2>News</h2>
+        <div className="rule" />
+        <ul className="news-list">
+          {paper.news.map((item) => <li key={item}>{item}</li>)}
+        </ul>
+        <p className="contact-line">{paper.contact}</p>
+      </section>
+
+      <section className="section-block">
+        <h2>BibTeX</h2>
+        <pre className="bibtex"><code>{paper.bibtex}</code></pre>
+      </section>
+    </main>
+  );
+}
+
+function AboutPage() {
+  return (
+    <main className="page">
+      <section className="section-block page-section-top">
+        <h2>About</h2>
+        <div className="rule" />
+        <p>
+          VT-Bench is a unified benchmark for visual-tabular multi-modal learning. It covers both discriminative prediction and
+          generative reasoning, aiming to evaluate whether models can reliably combine image evidence with structured tabular data.
+        </p>
+      </section>
+
+      <section className="section-block">
+        <h2>Benchmark Overview</h2>
+        <div className="rule" />
+        <table className="simple-table">
+          <thead>
+            <tr><th>Item</th><th>Value</th><th>Description</th></tr>
+          </thead>
+          <tbody>
+            {benchmarkRows.map((row) => (
+              <tr key={row[0]}><td>{row[0]}</td><td>{row[1]}</td><td>{row[2]}</td></tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+
+      <section className="section-block">
+        <h2>Task Paradigms</h2>
+        <div className="rule" />
+        <div className="card-grid two-col">
+          <div className="info-card">
+            <h3>Discriminative Prediction</h3>
+            <p>Predicts a discrete label or continuous value from an aligned image and a single-row tabular feature vector.</p>
+          </div>
+          <div className="info-card">
+            <h3>Generative Reasoning</h3>
+            <p>Answers natural-language questions using images and structured tables or databases, often requiring evidence localization and multi-step reasoning.</p>
+          </div>
+        </div>
+      </section>
+
+      <section className="section-block">
+        <h2>Datasets</h2>
+        <div className="rule" />
+        <table className="simple-table">
+          <thead>
+            <tr><th>Dataset</th><th>Domain</th><th>Task</th></tr>
+          </thead>
+          <tbody>
+            {datasets.map((row) => (
+              <tr key={row[0]}><td>{row[0]}</td><td>{row[1]}</td><td>{row[2]}</td></tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+    </main>
+  );
+}
+
+function QuickstartPage() {
+  const [copied, setCopied] = useState(false);
+
+  return (
+    <main className="page">
+      <section className="section-block page-section-top">
+        <h2>Quickstart</h2>
+        <div className="rule" />
+        <p>
+          VT-Bench provides a unified API for evaluating prediction and reasoning tasks. Fill in installation details here after the final repository structure is confirmed.
+        </p>
+      </section>
+
+      <section className="section-block">
+        <h2>Installation</h2>
+        <pre className="code-box"><code>{`git clone https://github.com/Ziyi-Jia990/VT-Bench.git
+cd VT-Bench
+pip install -r requirements.txt`}</code></pre>
+      </section>
+
+      <section className="section-block">
+        <h2>Example Commands</h2>
+        <div className="code-header">
+          <span>Run benchmark examples</span>
+          <button
+            onClick={() => {
+              navigator.clipboard?.writeText(quickstart);
+              setCopied(true);
+              window.setTimeout(() => setCopied(false), 1600);
+            }}
+          >
+            {copied ? "Copied" : "Copy"}
+          </button>
+        </div>
+        <pre className="code-box"><code>{quickstart}</code></pre>
+      </section>
+
+      <section className="section-block">
+        <h2>Arguments</h2>
+        <table className="simple-table">
+          <thead><tr><th>Argument</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>--task</code></td><td>Choose <code>prediction</code> or <code>reasoning</code>.</td></tr>
+            <tr><td><code>--dataset</code></td><td>Select the benchmark dataset.</td></tr>
+            <tr><td><code>--model</code></td><td>Select a built-in model or a registered custom model.</td></tr>
+            <tr><td><code>--setting</code></td><td>Choose evaluation setting, especially for reasoning tasks.</td></tr>
+            <tr><td><code>--diagnostics</code></td><td>Choose modality diagnostics such as <code>mcr</code>, <code>mir</code>, or <code>full</code>.</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+  );
+}
+
+function LeaderboardPage() {
+  return (
+    <main className="page">
+      <section className="section-block page-section-top">
+        <h2>Leaderboard</h2>
+        <div className="rule" />
+        <p>
+          This is a placeholder leaderboard following the paper results. You can replace it with the official public leaderboard table later.
+        </p>
+      </section>
+
+      <section className="section-block">
+        <h2>Generative Reasoning Snapshot</h2>
+        <table className="simple-table leaderboard-table">
+          <thead>
+            <tr>
+              <th>Rank</th>
+              <th>Model</th>
+              <th>DVM-Car QA Avg.</th>
+              <th>MMQA Avg.</th>
+              <th>EHRXQA Full</th>
+            </tr>
+          </thead>
+          <tbody>
+            {leaderboard.map((row, index) => (
+              <tr key={row[0]}>
+                <td>{index + 1}</td>
+                <td>{row[0]}</td>
+                <td>{row[1]}</td>
+                <td>{row[2]}</td>
+                <td>{row[3]}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+    </main>
+  );
+}
+
+function validateData() {
+  const errors = [];
+  if (paper.title !== "VT-Bench") errors.push("Home title should be VT-Bench.");
+  if (paper.authors.length !== 7) errors.push("Expected 7 authors.");
+  if (LINKS.code !== "https://github.com/Ziyi-Jia990/VT-Bench") errors.push("Code link is incorrect.");
+  if (!paper.abstract.includes("14 datasets")) errors.push("Abstract should mention 14 datasets.");
+  if (datasets.length !== 14) errors.push("Expected 14 dataset rows.");
+  if (!quickstart.includes("--task prediction") || !quickstart.includes("--task reasoning")) errors.push("Quickstart examples are incomplete.");
+  return errors;
+}
+
+function TestBanner() {
+  const errors = useMemo(() => validateData(), []);
+  if (errors.length === 0) return null;
+  return <div className="test-banner">Data checks failed: {errors.join(" ")}</div>;
+}
+
+export default function VTBenchProjectPage() {
+  const [page, setPage] = useState("Home");
+
+  return (
+    <div className="site-shell">
+      <style>{`
+        :root {
+          --text: #111827;
+          --muted: #4b5563;
+          --line: #e5e7eb;
+          --link: #2563eb;
+          --nav: #242a31;
+          --bg: #ffffff;
+          --soft: #f7f7f7;
+        }
+
+        * { box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
+        body { margin: 0; }
+        .site-shell {
+          min-height: 100vh;
+          background: var(--bg);
+          color: var(--text);
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, "Noto Sans", sans-serif;
+        }
+        .topbar {
+          height: 50px;
+          border-bottom: 1px solid var(--line);
+          background: #fff;
+          position: sticky;
+          top: 0;
+          z-index: 10;
+        }
+        .nav-inner {
+          max-width: 1080px;
+          height: 50px;
+          margin: 0 auto;
+          padding: 0 12px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+        }
+        .logo-button {
+          border: 0;
+          background: transparent;
+          padding: 0;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+        }
+        .logo-img {
+          display: block;
+          width: 98px;
+          height: 46px;
+          object-fit: contain;
+        }
+        nav { display: flex; align-items: center; height: 100%; }
+        nav button {
+          height: 40px;
+          border: 0;
+          background: transparent;
+          padding: 0 13px;
+          color: #526070;
+          font-size: 15px;
+          cursor: pointer;
+        }
+        nav button:hover { color: #111827; }
+        nav button.nav-active {
+          background: var(--nav);
+          color: #fff;
+          font-weight: 700;
+        }
+        .page {
+          max-width: 1080px;
+          margin: 0 auto;
+          padding: 0 12px 18px;
+        }
+        .hero-title {
+          text-align: center;
+          padding-top: 20px;
+          padding-bottom: 34px;
+        }
+        h1, h2, h3, p { margin-top: 0; }
+        .hero-title h1 {
+          font-size: 37px;
+          line-height: 1.15;
+          margin-bottom: 10px;
+          font-weight: 700;
+        }
+        .hero-title h2 {
+          font-size: 30px;
+          line-height: 1.25;
+          margin-bottom: 8px;
+          font-weight: 600;
+        }
+        .authors {
+          font-size: 16px;
+          margin-top: 5px;
+          margin-bottom: 2px;
+        }
+        .authors a {
+          color: var(--link);
+          text-decoration: none;
+        }
+        .authors a:hover { text-decoration: underline; }
+        sup {
+          font-size: 0.68em;
+          line-height: 0;
+          vertical-align: super;
+        }
+        .affiliations {
+          font-size: 15px;
+          line-height: 1.45;
+          margin-top: 2px;
+        }
+        .button-row {
+          margin-top: 26px;
+          display: flex;
+          justify-content: center;
+          gap: 20px;
+          flex-wrap: wrap;
+        }
+        .paper-button {
+          min-width: 100px;
+          height: 40px;
+          border: 1px solid #111;
+          border-radius: 8px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          color: #000;
+          text-decoration: none;
+          background: #fff;
+          font-size: 15px;
+        }
+        .paper-button:hover { background: #f3f4f6; }
+        .paper-button.disabled {
+          cursor: default;
+          opacity: 0.72;
+        }
+        .icon {
+          width: 22px;
+          height: 22px;
+        }
+        .section-block {
+          margin-top: 16px;
+          margin-bottom: 18px;
+        }
+        .page-section-top { margin-top: 36px; }
+        .section-block h2 {
+          font-size: 30px;
+          font-weight: 700;
+          line-height: 1.25;
+          margin-bottom: 12px;
+        }
+        .rule {
+          height: 1px;
+          background: var(--line);
+          margin-bottom: 18px;
+        }
+        .section-block p {
+          font-size: 16px;
+          line-height: 1.55;
+          color: #111827;
+        }
+        .news-list {
+          font-size: 15px;
+          line-height: 1.55;
+          margin-top: 0;
+          margin-bottom: 18px;
+        }
+        .contact-line { margin-bottom: 0; }
+        .bibtex, .code-box {
+          border: 1px solid #d1d5db;
+          border-radius: 4px;
+          background: #f3f3f3;
+          padding: 16px;
+          overflow-x: auto;
+          white-space: pre;
+          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+          font-size: 13px;
+          line-height: 1.55;
+        }
+        .code-box {
+          background: #f8fafc;
+          border-radius: 6px;
+        }
+        .simple-table {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 15px;
+          line-height: 1.4;
+          border: 1px solid var(--line);
+        }
+        .simple-table th,
+        .simple-table td {
+          border: 1px solid var(--line);
+          padding: 10px 12px;
+          text-align: left;
+          vertical-align: top;
+        }
+        .simple-table th {
+          background: #f3f4f6;
+          font-weight: 700;
+        }
+        .simple-table tr:nth-child(even) td { background: #fafafa; }
+        .card-grid {
+          display: grid;
+          gap: 16px;
+        }
+        .two-col { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .info-card {
+          border: 1px solid var(--line);
+          border-radius: 8px;
+          padding: 18px;
+          background: #fff;
+        }
+        .info-card h3 {
+          font-size: 19px;
+          margin-bottom: 8px;
+        }
+        .info-card p {
+          margin-bottom: 0;
+          color: var(--muted);
+        }
+        .code-header {
+          border: 1px solid #d1d5db;
+          border-bottom: 0;
+          border-radius: 6px 6px 0 0;
+          background: #f3f4f6;
+          padding: 8px 10px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          font-size: 14px;
+        }
+        .code-header + .code-box {
+          border-radius: 0 0 6px 6px;
+        }
+        .code-header button {
+          border: 1px solid #9ca3af;
+          background: #fff;
+          border-radius: 4px;
+          padding: 4px 10px;
+          cursor: pointer;
+        }
+        code {
+          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+        }
+        .leaderboard-table td:first-child,
+        .leaderboard-table th:first-child { width: 72px; text-align: center; }
+        .test-banner {
+          background: #fff7ed;
+          color: #9a3412;
+          border-bottom: 1px solid #fed7aa;
+          padding: 8px 12px;
+          font-size: 13px;
+        }
+        @media (max-width: 760px) {
+          .topbar { height: auto; }
+          .nav-inner {
+            height: auto;
+            align-items: flex-start;
+            gap: 8px;
+            flex-direction: column;
+            padding: 6px 12px;
+          }
+          nav {
+            width: 100%;
+            overflow-x: auto;
+          }
+          nav button { height: 36px; padding: 0 10px; }
+          .hero-title h1 { font-size: 32px; }
+          .hero-title h2 { font-size: 24px; }
+          .section-block h2 { font-size: 26px; }
+          .two-col { grid-template-columns: 1fr; }
+          .simple-table { font-size: 13px; }
+          .simple-table th,
+          .simple-table td { padding: 8px; }
+        }
+      `}</style>
+      <TestBanner />
+      <Nav page={page} setPage={setPage} />
+      {page === "Home" && <HomePage />}
+      {page === "About" && <AboutPage />}
+      {page === "Quickstart" && <QuickstartPage />}
+      {page === "Leaderboard" && <LeaderboardPage />}
+    </div>
+  );
+}
