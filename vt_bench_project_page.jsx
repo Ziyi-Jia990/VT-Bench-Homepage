@@ -1,7 +1,7 @@
 const { useMemo, useState } = React;
 
 const LINKS = {
-  arxiv: "#",
+  arxiv: "https://arxiv.org/abs/2605.08146",
   code: "https://github.com/Ziyi-Jia990/VT-Bench",
 };
 
